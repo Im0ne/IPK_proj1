@@ -1,0 +1,13 @@
+{
+    "C_Cpp.default.compilerPath": "C:\\msys64\\ucrt64\\bin\\gcc.exe",
+    "C_Cpp.errorSquiggles": "disabled",
+    "cSpell.words": [
+        "Onufriienko"
+    ],
+    "files.associations": {
+        "unistd.h": "c",
+        "main.h": "c",
+        "getopt.h": "c",
+        "signal.h": "c"
+    }
+}
