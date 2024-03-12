@@ -8,6 +8,7 @@
         "unistd.h": "c",
         "main.h": "c",
         "getopt.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "types.h": "c"
     }
 }

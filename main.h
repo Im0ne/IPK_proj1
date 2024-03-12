@@ -1,3 +1,9 @@
+/**
+ * @file main.h
+ * @brief IPK Project 1 - Chat Client
+ * @author Ivan Onufriienko
+ * 
+*/
 
 
 #include "tcp.h"

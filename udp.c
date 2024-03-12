@@ -1,3 +1,9 @@
+/**
+ * @file udp.c
+ * @brief IPK Project 1 - Chat Client
+ * @author Ivan Onufriienko
+ * 
+*/
 
 
 #include "udp.h"

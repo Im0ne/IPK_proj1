@@ -1,5 +1,5 @@
 /**
- * @file ipk24chat-client.c
+ * @file main.c
  * @brief IPK Project 1 - Chat Client
  * @author Ivan Onufriienko
  * 
@@ -53,16 +53,15 @@ int main(int argc, char *argv[]){
 			case 'h':
 				print_help();
 				exit(0);
-			default:
-				
-				fprintf(stderr, "Unknown argument: %c\n", opt);
+			default:			
+				fprintf(stderr, "ERR: Unknown argument: %c\n", opt);
 				exit(1);
 			}
 		}
 	
 	if (protocol == NULL || hostname == NULL) {
 		
-		fprintf(stderr, "Protocol and server must be specified\n");
+		fprintf(stderr, "ERR: Protocol and server must be specified\n");
 		exit(1);
 	}
 
@@ -72,7 +71,7 @@ int main(int argc, char *argv[]){
 
 	if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0) {
 		
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+		fprintf(stderr, "ERR: getaddrinfo: %s\n", gai_strerror(status));
 		return 2;
 	}
 
@@ -80,20 +79,16 @@ int main(int argc, char *argv[]){
 	void *addr = &(ipv4->sin_addr);
 	inet_ntop(res->ai_family, addr, ipstr, sizeof ipstr);
 
-	printf("%s resolved to : %s\n", hostname, ipstr);
-
 	freeaddrinfo(res);
 	
 	if (strcmp(protocol, "tcp") == 0) {
-		int return_code = tcp_connect(ipstr, port);
+		return tcp_connect(ipstr, port);
 	} else if (strcmp(protocol, "udp") == 0) {
-		int return_code = udp_connect(ipstr, port, timeout, retransmissions);
+		return udp_connect(ipstr, port, timeout, retransmissions);
 	} else {
 		
-		fprintf(stderr, "Unknown protocol: %s\n", protocol);
+		fprintf(stderr, "ERR: Unknown protocol: %s\n", protocol);
 		return 1;
 	}
-	
-	return 0;
     
 }

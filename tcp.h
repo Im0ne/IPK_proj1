@@ -1,3 +1,9 @@
+/**
+ * @file tcp.h
+ * @brief IPK Project 1 - Chat Client
+ * @author Ivan Onufriienko
+ * 
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,12 +17,15 @@
 #include <sys/epoll.h>
 #include <getopt.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #define MAX_EVENTS 5
 #define MAX_CONTENT 1400
 #define MAX_DNAME 20
 #define MAX_ID 20
 #define MAX_SECRET 128
+
+
 
 char* create_auth_message(char* username, char* display_name, char* secret);
 
