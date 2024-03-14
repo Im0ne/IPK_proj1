@@ -9,6 +9,7 @@
         "main.h": "c",
         "getopt.h": "c",
         "signal.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "stdbool.h": "c"
     }
 }

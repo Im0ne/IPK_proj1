@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #define MAX_EVENTS 5
 #define MAX_CONTENT 1400
@@ -39,10 +40,14 @@ char* create_reply_message(char* status, char* message_content);
 
 char* create_bye_message();
 
-void handle_command(char* command, int socket_desc, char* display_name);
-
 void print_help_tcp();
 
 void cleanup(int socket_desc, int epollfd);
+
+void handle_command(char* command, int socket_desc, char* display_name);
+
+void handle_server_reply(char* reply);
+
+void signal_handler(int signum);
 
 int tcp_connect(char* ipstr, int port);
