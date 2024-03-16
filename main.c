@@ -8,7 +8,8 @@
 #include "main.h"
 
 
-void print_help() {
+
+void print_help_main() {
 	printf("Usage: ipk24chat-client -t protocol -s server [-p port] [-d timeout] [-r retransmissions] [-h]\n");
 	printf("Options:\n");
 	printf("  -t protocol\t\tProtocol to use (tcp or udp)\n");
@@ -18,8 +19,6 @@ void print_help() {
 	printf("  -r retransmissions\tNumber of retransmissions (default 3)\n");
 	printf("  -h\t\t\tPrint this help\n");
 }
-
-
 
 int main(int argc, char *argv[]){
     
@@ -51,7 +50,7 @@ int main(int argc, char *argv[]){
 				retransmissions = atoi(optarg);
 				break;
 			case 'h':
-				print_help();
+				print_help_main();
 				exit(0);
 			default:			
 				fprintf(stderr, "ERR: Unknown argument: %c\n", opt);

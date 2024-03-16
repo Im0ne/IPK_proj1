@@ -10,6 +10,13 @@
         "getopt.h": "c",
         "signal.h": "c",
         "types.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "help.h": "c",
+        "tcp.h": "c",
+        "system_error": "c",
+        "compare": "c",
+        "cstdint": "c"
     }
 }
