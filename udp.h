@@ -15,7 +15,7 @@
 #define ERR     0xFE
 #define BYE     0xFF
 
-#define MESSAGE_HEADER_SIZE 3
+#define MAX_RECENT_MSG_IDS 100
 
 int create_confirm_message_udp(uint16_t ref_message_id, char* message);
 
@@ -29,9 +29,9 @@ int create_err_message_udp(uint16_t message_id, char* display_name, char* messag
 
 int create_bye_message_udp(uint16_t message_id, char* message);
 
-void handle_command_udp(char* command, int socket_desc, char* display_name, uint16_t message_id);
+void handle_command_udp(char* command, int socket_desc, char* display_name, uint16_t message_id, int timeout, int retransmissions);
 
-void handle_server_reply_udp(char* reply);
+void handle_server_reply_udp(char* reply, int timeout, int retranmissions, int message_id);
 
 void signal_handler_udp(int signum);
 

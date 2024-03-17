@@ -17,6 +17,8 @@
         "tcp.h": "c",
         "system_error": "c",
         "compare": "c",
-        "cstdint": "c"
+        "cstdint": "c",
+        "chrono": "c",
+        "functional": "c"
     }
 }
