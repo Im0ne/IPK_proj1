@@ -33,33 +33,22 @@ int main(int argc, char *argv[]){
 	int retransmissions = 3;
 
 	while ((opt = getopt(argc, argv, "t:s:p:d:r:h")) != -1) {
-			switch (opt) {
-			case 't':
-				protocol = optarg;
-				break;
-			case 's':
-				hostname = optarg;
-				break;
-			case 'p':
-				port = atoi(optarg);
-				break;
-			case 'd':
-				timeout = atoi(optarg);
-				break;
-			case 'r':
-				retransmissions = atoi(optarg);
-				break;
-			case 'h':
-				print_help_main();
-				exit(0);
-			default:			
-				fprintf(stderr, "ERR: Unknown argument: %c\n", opt);
-				exit(1);
-			}
+		switch (opt) {
+		case 't': protocol = optarg; break;
+    	case 's': hostname = optarg; break;
+    	case 'p': port = atoi(optarg); break;
+    	case 'd': timeout = atoi(optarg); break;
+    	case 'r': retransmissions = atoi(optarg); break;
+		case 'h':
+			print_help_main();
+			return EXIT_SUCCESS;
+		default:			
+			fprintf(stderr, "ERR: Unknown argument: %c\n", opt);
+			return EXIT_FAILURE;
 		}
+	}
 	
-	if (protocol == NULL || hostname == NULL) {
-		
+	if (protocol == NULL || hostname == NULL) {	
 		fprintf(stderr, "ERR: Protocol and server must be specified\n");
 		exit(1);
 	}
@@ -71,7 +60,7 @@ int main(int argc, char *argv[]){
 	if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0) {
 		
 		fprintf(stderr, "ERR: getaddrinfo: %s\n", gai_strerror(status));
-		return 2;
+		return EXIT_FAILURE;
 	}
 
 	struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
@@ -84,10 +73,9 @@ int main(int argc, char *argv[]){
 		return tcp_connect(ipstr, port);
 	} else if (strcmp(protocol, "udp") == 0) {
 		return udp_connect(ipstr, port, timeout, retransmissions);
-	} else {
-		
+	} else {	
 		fprintf(stderr, "ERR: Unknown protocol: %s\n", protocol);
-		return 1;
+		return EXIT_FAILURE;
 	}
     
 }

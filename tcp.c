@@ -119,7 +119,7 @@ void error_tcp(char *msg) {
 
 void handle_server_reply_tcp(char* reply) {
     char* token = strtok(reply, " ");
-    if (strcmp(token, "REPLY") == 0) {
+    if (strcasecmp(token, "REPLY") == 0) {
         char* status = strtok(NULL, " ");
         strtok(NULL, " "); // Skip "IS"
         char* message = strtok(NULL, "\r\n");
@@ -129,23 +129,29 @@ void handle_server_reply_tcp(char* reply) {
         if ((strncmp(last_command_tcp, "/auth", 5) == 0) || (strncmp(last_command_tcp, "/join", 5) == 0)){
             ev_tcp.events = EPOLLIN;
             ev_tcp.data.fd = STDIN_FILENO;
-            epoll_ctl(epollfd_tcp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_tcp);
-        } else {
-            error_tcp("REPLY on other than /auth or /join command");
-        }
-        if (strcmp(status, "OK") == 0) {
+            if (epoll_ctl(epollfd_tcp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_tcp) == -1) {
+                fprintf(stderr, "ERR: Error_tcp in epoll_ctl\n");
+                cleanup(socket_desc_tcp, epollfd_tcp);
+                exit(EXIT_FAILURE);
+            }
+        } 
+        // FSM issue smh
+        //else {
+        //    error_tcp("REPLY on other than /auth or /join command");
+        //}
+        if (strcasecmp(status, "OK") == 0) {
             fprintf(stderr, "Success: %s\n", message);
 
             if (strncmp(last_command_tcp, "/auth", 5) == 0) {
                 authenticated = true;
             } 
-        } else if (strcmp(status, "NOK") == 0) {
+        } else if (strcasecmp(status, "NOK") == 0) {
             fprintf(stderr, "Failure: %s\n", message);
         } else {
             error_tcp("Unknown status in REPLY message");
         }
 
-    } else if (strcmp(token, "MSG") == 0) {
+    } else if (strcasecmp(token, "MSG") == 0) {
         if (!authenticated) {
             error_tcp("Message from server before authentication");
         }
@@ -157,7 +163,7 @@ void handle_server_reply_tcp(char* reply) {
             error_tcp("Invalid MSG message from server");
         }
         printf("%s: %s\n", from, message);
-    } else if (strcmp(token, "ERR") == 0) {
+    } else if (strcasecmp(token, "ERR") == 0) {
         strtok(NULL, " "); // Skip "FROM"
         char* from = strtok(NULL, " ");
         strtok(NULL, " "); // Skip "IS"
