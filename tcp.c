@@ -17,8 +17,6 @@ int socket_desc_tcp = -1;
 int epollfd_tcp = -1;                    
 // Flag for checking if user is authenticated   
 bool authenticated = false;
-// Blockade of stdin after /auth and /join
-struct epoll_event ev_tcp;
 
 char* create_auth_message_tcp(char* username, char* display_name, char* secret) {
     static char message[1500];
@@ -50,7 +48,7 @@ char* create_bye_message_tcp() {
 
 
 
-void handle_command_tcp(char* command, int socket_desc_tcp, char* display_name) {
+void handle_command_tcp(char* command, int socket_desc_tcp, char* display_name, fd_set* fds) {
     strncpy(last_command_tcp, command, 7);
     char extra[MAX_CONTENT] = "";
     if (strncmp(command, "/auth", 5) == 0) {
@@ -68,7 +66,7 @@ void handle_command_tcp(char* command, int socket_desc_tcp, char* display_name) 
         strncpy(global_display_name_tcp, display_name, MAX_DNAME);
         char* message = create_auth_message_tcp(username, display_name, secret);
         send(socket_desc_tcp, message, strlen(message), 0);
-        epoll_ctl(epollfd_tcp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_tcp);
+        FD_CLR(STDIN_FILENO, fds); // Remove STDIN_FILENO from the file descriptor set
     } else if (strncmp(command, "/join", 5) == 0) {
         if(!authenticated){
             fprintf(stderr, "ERR: You must authenticate first\n");
@@ -82,7 +80,7 @@ void handle_command_tcp(char* command, int socket_desc_tcp, char* display_name) 
         }
         char* message = create_join_message_tcp(channel_id, global_display_name_tcp);
         send(socket_desc_tcp, message, strlen(message), 0);
-        epoll_ctl(epollfd_tcp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_tcp);
+        FD_CLR(STDIN_FILENO, fds); // Remove STDIN_FILENO from the file descriptor set
     } else if (strncmp(command, "/rename", 7) == 0) {
         if(!authenticated){
             fprintf(stderr, "ERR: You must authenticate first\n");
@@ -117,7 +115,7 @@ void error_tcp(char *msg) {
     exit(EXIT_FAILURE);
 }
 
-void handle_server_reply_tcp(char* reply) {
+void handle_server_reply_tcp(char* reply, fd_set* fds) {
     char* token = strtok(reply, " ");
     if (strcasecmp(token, "REPLY") == 0) {
         char* status = strtok(NULL, " ");
@@ -127,13 +125,7 @@ void handle_server_reply_tcp(char* reply) {
             error_tcp("Invalid REPLY message from server");
         }
         if ((strncmp(last_command_tcp, "/auth", 5) == 0) || (strncmp(last_command_tcp, "/join", 5) == 0)){
-            ev_tcp.events = EPOLLIN;
-            ev_tcp.data.fd = STDIN_FILENO;
-            if (epoll_ctl(epollfd_tcp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_tcp) == -1) {
-                fprintf(stderr, "ERR: Error_tcp in epoll_ctl\n");
-                cleanup(socket_desc_tcp, epollfd_tcp);
-                exit(EXIT_FAILURE);
-            }
+            FD_SET(STDIN_FILENO, fds); // Add STDIN_FILENO back to the file descriptor set
         } 
         // FSM issue smh
         //else {
@@ -216,81 +208,73 @@ int tcp_connect(char* ipstr, int port) {
         fprintf(stderr,"ERR: Connect error_tcp\n");
         return EXIT_FAILURE;
     }	
-
-    // Create epoll
-    epollfd_tcp = epoll_create1(0);
-    if(epollfd_tcp == -1){
-        cleanup(socket_desc_tcp, epollfd_tcp);
-        fprintf(stderr,"ERR: Error_tcp in epoll creation\n");
-        return EXIT_FAILURE;
-    }
-
-    // Add the socket to the epoll instance
-    ev_tcp.events = EPOLLIN;
-    ev_tcp.data.fd = socket_desc_tcp;
-    epoll_ctl(epollfd_tcp, EPOLL_CTL_ADD, socket_desc_tcp, &ev_tcp);
     
-    // Add STDIN_FILENO to the epoll instance
-    ev_tcp.events = EPOLLIN;
-    ev_tcp.data.fd = STDIN_FILENO;
-    epoll_ctl(epollfd_tcp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_tcp);
+    // Create a file descriptor set
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    FD_SET(socket_desc_tcp, &fds);
     
     // Wait for events
     for(;;){
-        int nfds = epoll_wait(epollfd_tcp, events, MAX_EVENTS, -1);
-        if(nfds == -1){
-            cleanup(socket_desc_tcp, epollfd_tcp);
-            fprintf(stderr,"ERR: Error_tcp in epoll_wait\n");
+        // Make a copy of the file descriptor set because select() modifies it
+        fd_set read_fds = fds;
+    
+        // Wait for data to be available on any file descriptor
+        if (select(FD_SETSIZE, &read_fds, NULL, NULL, NULL) == -1) {
+            perror("select");
             return EXIT_FAILURE;
         }
     
-        for(int n = 0; n < nfds; ++n){
-            if(events[n].data.fd == socket_desc_tcp){
-                // Receive data from the server
-                char server_reply[1500];
-                int bytes = recv(socket_desc_tcp, server_reply, 1500, 0);
-                if(bytes == -1){
-                    cleanup(socket_desc_tcp, epollfd_tcp);
-                    fprintf(stderr,"ERR: Error_tcp in recv\n");
-                    return EXIT_FAILURE;
-                } else if(bytes == 0){
-                    cleanup(socket_desc_tcp, epollfd_tcp);
-                    fprintf(stderr,"ERR: Server disconnected\n");
-                    return EXIT_FAILURE;
-                }
-                handle_server_reply_tcp(server_reply);
+        for(int fd = 0; fd < FD_SETSIZE; ++fd){
+            if (FD_ISSET(fd, &read_fds)) {
+                if(fd == socket_desc_tcp){
+                    // Receive data from the server
+                    char server_reply[1500];
+                    int bytes = recv(socket_desc_tcp, server_reply, 1500, 0);
+                    if(bytes == -1){
+                        cleanup(socket_desc_tcp, epollfd_tcp);
+                        fprintf(stderr,"ERR: Error_tcp in recv\n");
+                        return EXIT_FAILURE;
+                    } else if(bytes == 0){
+                        cleanup(socket_desc_tcp, epollfd_tcp);
+                        fprintf(stderr,"ERR: Server disconnected\n");
+                        return EXIT_FAILURE;
+                    }
+                    handle_server_reply_tcp(server_reply, &fds);
 
-            } else if(events[n].data.fd == STDIN_FILENO){
-                // Read user input and send data to the server
-                char buffer[1500];
-                if (fgets(buffer, 1500, stdin) == NULL) {
-                    // Ctrl+D was pressed, exit the program
-                    cleanup(socket_desc_tcp, epollfd_tcp);
-                    return EXIT_SUCCESS;
-                }
-                
-                // Message is empty, skip
-                if(strlen(buffer) == 1){
-                    continue;
-                }
-                
-                // Message is either a command or a message
-                if (buffer[0] == '/') {
-                    handle_command_tcp(buffer, socket_desc_tcp, display_name);
-                } else {
-                    if (!authenticated) {
-                        fprintf(stderr, "ERR: You must authenticate first\n");
+                } else if(fd == STDIN_FILENO){
+                    // Read user input and send data to the server
+                    char buffer[1500];
+                    if (fgets(buffer, 1500, stdin) == NULL) {
+                        // Ctrl+D was pressed, exit the program
+                        cleanup(socket_desc_tcp, epollfd_tcp);
+                        return EXIT_SUCCESS;
+                    }
+
+                    // Message is empty, skip
+                    if(strlen(buffer) == 1){
                         continue;
                     }
-                    buffer[strlen(buffer) - 1] = '\0'; // Replace newline with null character
-                    if (!is_print_or_space(buffer)) {
-                        fprintf(stderr, "ERR: Invalid message\n");
-                        continue;
+
+                    // Message is either a command or a message
+                    if (buffer[0] == '/') {
+                        handle_command_tcp(buffer, socket_desc_tcp, display_name, &fds);
+                    } else {
+                        if (!authenticated) {
+                            fprintf(stderr, "ERR: You must authenticate first\n");
+                            continue;
+                        }
+                        buffer[strlen(buffer) - 1] = '\0'; // Replace newline with null character
+                        if (!is_print_or_space(buffer)) {
+                            fprintf(stderr, "ERR: Invalid message\n");
+                            continue;
+                        }
+                        char* message = create_msg_message_tcp(global_display_name_tcp, buffer);
+                        send(socket_desc_tcp, message, strlen(message), 0);
                     }
-                    char* message = create_msg_message_tcp(global_display_name_tcp, buffer);
-                    send(socket_desc_tcp, message, strlen(message), 0);
+
                 }
-                
             }
         }
     }

@@ -33,9 +33,9 @@ int create_bye_message_udp(uint16_t message_id, char* message);
 
 void error_udp(char *msg, char* message, uint16_t ref_message_id, int timeout, int retransmissions);
 
-void handle_command_udp(char* command, int socket_desc, char* display_name, uint16_t message_id, int timeout, int retransmissions);
+void handle_command_udp(char* command, int socket_desc, char* display_name, uint16_t message_id, int timeout, int retransmissions, fd_set* fds);
 
-void handle_server_reply_udp(char* reply, int timeout, int retranmissions, int message_id);
+void handle_server_reply_udp(char* reply, int timeout, int retranmissions, int message_id, fd_set* fds);
 
 void signal_handler_udp(int signum);
 

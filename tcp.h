@@ -18,9 +18,9 @@ char* create_err_message_tcp(char* display_name, char* message_content);
 
 char* create_bye_message_tcp();
 
-void handle_command_tcp(char* command, int socket_desc, char* display_name);
+void handle_command_tcp(char* command, int socket_desc, char* display_name, fd_set* fds);
 
-void handle_server_reply_tcp(char* reply);
+void handle_server_reply_tcp(char* reply, fd_set* fds);
 
 void signal_handler_tcp(int signum);
 

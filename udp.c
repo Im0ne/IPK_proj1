@@ -41,16 +41,17 @@ bool wait_for_confirmation(int socket_desc_udp, char* message, int message_lengt
     tv.tv_usec = timeout;
 
     for (int i = 0; i < retransmissions; i++) {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(socket_desc_udp, &read_fds);
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(socket_desc_udp, &fds);
 
-        int activity = select(socket_desc_udp + 1, &read_fds, NULL, NULL, &tv);
+        int activity = select(socket_desc_udp + 1, &fds, NULL, NULL, &tv);
 
-        if (activity > 0 && FD_ISSET(socket_desc_udp, &read_fds)) {
+        if (activity > 0 && FD_ISSET(socket_desc_udp, &fds)) {
             ssize_t numBytes = recvfrom(socket_desc_udp, buffer, sizeof(buffer) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
             if (numBytes < 0) {
                 fprintf(stderr, "ERR: Cannot receive message\n");
+                cleanup(socket_desc_udp, epollfd_udp);
                 return false;
             }
 
@@ -62,10 +63,12 @@ bool wait_for_confirmation(int socket_desc_udp, char* message, int message_lengt
             // Timeout, need to retransmit the message
             if (sendto(socket_desc_udp, message, message_length, 0, server_addr, server_addr_len) < 0) {
                 fprintf(stderr, "ERR: Cannot retransmit message\n");
+                cleanup(socket_desc_udp, epollfd_udp);
                 return false;
             }
         } else {
             fprintf(stderr, "ERR: select error\n");
+            cleanup(socket_desc_udp, epollfd_udp);
             return false;
         }
     }
@@ -209,7 +212,7 @@ void error_udp(char *msg, char* message, uint16_t ref_message_id, int timeout, i
     exit(EXIT_SUCCESS);
 }
 
-void handle_command_udp(char* command, int socket_desc_udp, char* display_name, uint16_t message_id, int timeout, int retransmissions) {
+void handle_command_udp(char* command, int socket_desc_udp, char* display_name, uint16_t message_id, int timeout, int retransmissions, fd_set* fds) {
     strncpy(last_command_udp, command, 7);
     char extra[MAX_CONTENT] = "";
     char message[1500];
@@ -228,9 +231,10 @@ void handle_command_udp(char* command, int socket_desc_udp, char* display_name, 
         strncpy(global_display_name_udp, display_name, MAX_DNAME);
         int message_length = create_auth_message_udp(message_id++, username, display_name, secret, message);
         sendto(socket_desc_udp, message, message_length, 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
-        epoll_ctl(epollfd_udp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_udp);
+        FD_CLR(STDIN_FILENO, fds);
         if (!wait_for_confirmation(socket_desc_udp, message, message_length, (struct sockaddr*)&server_addr, sizeof(server_addr), message_id - 1, timeout, retransmissions)) {
             fprintf(stderr, "ERR: Did not receive confirmation from server\n");
+            cleanup(socket_desc_udp, epollfd_udp);
             exit(EXIT_FAILURE);
         }
     } else if (strncmp(command, "/join", 5) == 0) {
@@ -246,7 +250,7 @@ void handle_command_udp(char* command, int socket_desc_udp, char* display_name, 
         }
         int message_length = create_join_message_udp(message_id++, channel_id, global_display_name_udp, message);
         sendto(socket_desc_udp, message, message_length, 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
-        epoll_ctl(epollfd_udp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_udp);
+        FD_CLR(STDIN_FILENO, fds);
         if (!wait_for_confirmation(socket_desc_udp, message, message_length, (struct sockaddr*)&server_addr, sizeof(server_addr), message_id - 1, timeout, retransmissions)) {
             fprintf(stderr, "ERR: Did not receive confirmation from server\n");
             exit(EXIT_FAILURE);
@@ -275,7 +279,7 @@ void handle_command_udp(char* command, int socket_desc_udp, char* display_name, 
     }
 }
 
-void handle_server_reply_udp(char* reply, int timeout, int retransmissions, int message_id) {
+void handle_server_reply_udp(char* reply, int timeout, int retransmissions, int message_id, fd_set* fds) {
     uint16_t ref_message_id = (uint8_t)reply[1] << 8 | (uint8_t)reply[2];
     if (reply[0] == CONFIRM) {
         
@@ -301,13 +305,7 @@ void handle_server_reply_udp(char* reply, int timeout, int retransmissions, int 
     if (reply[0] == REPLY) {
         uint8_t result = reply[3];
         if ((strncmp(last_command_udp, "/auth", 5) == 0) || (strncmp(last_command_udp, "/join", 5) == 0)){
-            ev_udp.events = EPOLLIN;
-            ev_udp.data.fd = STDIN_FILENO;
-            if (epoll_ctl(epollfd_udp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_udp) == -1) {
-                fprintf(stderr, "ERR: epoll_ctl: stdin");
-                cleanup(socket_desc_udp, epollfd_udp);
-                exit(EXIT_FAILURE);
-            }
+            FD_SET(STDIN_FILENO, fds);
         }
         if (result == 0x01) {
             fprintf(stderr, "Success: %s\n", reply + 5);
@@ -324,6 +322,15 @@ void handle_server_reply_udp(char* reply, int timeout, int retransmissions, int 
         printf("%s: %s\n", reply + 3, reply + 4 + strlen(reply + 3));
     } else if (reply[0] == ERR) {
         fprintf(stderr, "ERR: %s\n", reply + 5);
+        int message_length = create_bye_message_udp(message_id++, message);
+        sendto(socket_desc_udp, message, message_length, 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+        if (!wait_for_confirmation(socket_desc_udp, message, message_length, (struct sockaddr*)&server_addr, sizeof(server_addr), message_id - 1, timeout, retransmissions)) {
+            fprintf(stderr, "ERR: Did not receive confirmation from server\n");
+            cleanup(socket_desc_udp, epollfd_udp);
+            exit(EXIT_FAILURE);
+        }
+        cleanup(socket_desc_udp, epollfd_udp);
+        exit(EXIT_SUCCESS);
     } else if (reply[0] == BYE) {
         cleanup(socket_desc_udp, epollfd_udp);
         exit(EXIT_SUCCESS);
@@ -353,7 +360,7 @@ void signal_handler_udp(int signum) {
 int udp_connect(char* ipstr, int port, int timeout, int retransmissions) {
     
     struct timeval tv;
-    struct epoll_event events[MAX_EVENTS];
+    fd_set fds;
     int nfds;
     
     signal(SIGINT, signal_handler_udp);
@@ -384,94 +391,69 @@ int udp_connect(char* ipstr, int port, int timeout, int retransmissions) {
         return EXIT_FAILURE;
     }
 
-    
-
-    // Create an epoll instance
-    epollfd_udp = epoll_create1(0);
-    if (epollfd_udp == -1) {
-        fprintf(stderr, "ERR: epoll_create1");
-        cleanup(socket_desc_udp, epollfd_udp);
-        exit(EXIT_FAILURE);
-    }
-
-    // Add the socket file descriptor to the epoll instance
-    ev_udp.events = EPOLLIN;
-    ev_udp.data.fd = socket_desc_udp;
-    if (epoll_ctl(epollfd_udp, EPOLL_CTL_ADD, socket_desc_udp, &ev_udp) == -1) {
-        fprintf(stderr, "ERR: epoll_ctl: socket_desc_udp");
-        cleanup(socket_desc_udp, epollfd_udp);
-        exit(EXIT_FAILURE);
-    }
-
-    // Add the stdin file descriptor to the epoll instance
-    ev_udp.data.fd = STDIN_FILENO;
-    if (epoll_ctl(epollfd_udp, EPOLL_CTL_ADD, STDIN_FILENO, &ev_udp) == -1) {
-        fprintf(stderr, "ERR: epoll_ctl: stdin");
-        cleanup(socket_desc_udp, epollfd_udp);
-        exit(EXIT_FAILURE);
-    }
-
     // Epoll loop
     for (;;) {
-        nfds = epoll_wait(epollfd_udp, events, MAX_EVENTS, -1);
+        FD_ZERO(&fds);
+        FD_SET(socket_desc_udp, &fds);
+        FD_SET(STDIN_FILENO, &fds);
+
+        nfds = select(socket_desc_udp + 1, &fds, NULL, NULL, &tv);
+
         if (nfds == -1) {
-            fprintf(stderr, "ERR: epoll_wait");
+            fprintf(stderr, "ERR: select error\n");
             cleanup(socket_desc_udp, epollfd_udp);
             exit(EXIT_FAILURE);
         }
-
-        for (int n = 0; n < nfds; ++n) {
-            if (events[n].data.fd == socket_desc_udp) {
-                
-                // Handle socket event
-                char server_reply[1500];
-                struct sockaddr_in sender_addr;
-                socklen_t sender_addr_len = sizeof(sender_addr);
-                ssize_t numBytes = recvfrom(socket_desc_udp, server_reply, sizeof(server_reply) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
-                if (numBytes < 0) {
-                    fprintf(stderr, "ERR: Cannot receive message\n");
+    
+        if (FD_ISSET(socket_desc_udp, &fds)) {
+            
+            // Handle socket event
+            char server_reply[1500];
+            struct sockaddr_in sender_addr;
+            socklen_t sender_addr_len = sizeof(sender_addr);
+            ssize_t numBytes = recvfrom(socket_desc_udp, server_reply, sizeof(server_reply) - 1, 0, (struct sockaddr*)&sender_addr, &sender_addr_len);
+            if (numBytes < 0) {
+                fprintf(stderr, "ERR: Cannot receive message\n");
+                cleanup(socket_desc_udp, epollfd_udp);
+                return EXIT_FAILURE;
+            }
+            handle_server_reply_udp(server_reply, timeout, retransmissions, message_id, &fds);
+        } else if (FD_ISSET(STDIN_FILENO, &fds)) {
+            // Handle stdin event         
+            char buffer[1500];
+            char message[1500];
+            if (fgets(buffer, 1500, stdin) == NULL) {
+                // Ctrl+D was pressed, exit the program
+                cleanup(socket_desc_udp, epollfd_udp);
+                return EXIT_SUCCESS;
+            }
+            if(strlen(buffer) == 1){
+                continue;
+            }
+            if(buffer[0] == '/'){
+                handle_command_udp(buffer, socket_desc_udp, global_display_name_udp, message_id, timeout, retransmissions, &fds);
+            }
+            else {
+                if(!authenticated_udp){
+                    fprintf(stderr, "ERR: You must authenticate first\n");
+                    continue;
+                    }
+                int message_length = create_msg_message_udp(message_id++, global_display_name_udp, buffer, message);
+                if (sendto(socket_desc_udp, message, message_length, 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+                    fprintf(stderr, "ERR: Cannot send message\n");
                     cleanup(socket_desc_udp, epollfd_udp);
                     return EXIT_FAILURE;
                 }
-                handle_server_reply_udp(server_reply, timeout, retransmissions, message_id);
-            } else if (events[n].data.fd == STDIN_FILENO) {
-                // Handle stdin event         
-                char buffer[1500];
-                char message[1500];
-                if (fgets(buffer, 1500, stdin) == NULL) {
-                    // Ctrl+D was pressed, exit the program
+                // Wait for confirmation from the server
+                if (!wait_for_confirmation(socket_desc_udp, message, message_length, (struct sockaddr*)&server_addr, sizeof(server_addr), message_id - 1, timeout, retransmissions)) {
+                    fprintf(stderr, "ERR: Did not receive confirmation from server\n");
                     cleanup(socket_desc_udp, epollfd_udp);
-                    return EXIT_SUCCESS;
+                    return EXIT_FAILURE;
                 }
-                if(strlen(buffer) == 1){
-                    continue;
-                }
-
-                if(buffer[0] == '/'){
-                    handle_command_udp(buffer, socket_desc_udp, global_display_name_udp, message_id, timeout, retransmissions);
-                }
-                else {
-                    // if(!authenticated_udp){
-                    //     fprintf(stderr, "ERR: You must authenticate first\n");
-                    //     continue;
-                    //     }
-                    int message_length = create_msg_message_udp(message_id++, global_display_name_udp, buffer, message);
-                    if (sendto(socket_desc_udp, message, message_length, 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-                        fprintf(stderr, "ERR: Cannot send message\n");
-                        cleanup(socket_desc_udp, epollfd_udp);
-                        return EXIT_FAILURE;
-                    }
-
-                    // Wait for confirmation from the server
-                    if (!wait_for_confirmation(socket_desc_udp, message, message_length, (struct sockaddr*)&server_addr, sizeof(server_addr), message_id - 1, timeout, retransmissions)) {
-                        fprintf(stderr, "ERR: Did not receive confirmation from server\n");
-                        cleanup(socket_desc_udp, epollfd_udp);
-                        return EXIT_FAILURE;
-                    }
-                    
-                }
+                
             }
         }
+    
     }
     
 
