@@ -19,7 +19,6 @@
         "compare": "c",
         "cstdint": "c",
         "chrono": "c",
-        "functional": "c",
-        "fcntl.h": "c"
+        "functional": "c"
     }
 }
