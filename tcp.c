@@ -1,6 +1,6 @@
 /**
  * @file tcp.c
- * @brief IPK Project 1 - Chat Client
+ * @brief IPK Project 1 - Chat Client(TCP protocol implementation)
  * @author Ivan Onufriienko
  * 
 */
@@ -49,11 +49,15 @@ char* create_bye_message_tcp() {
 }
 
 void error_tcp(char *msg) {
+    
     fprintf(stderr, "ERR: %s\n", msg);
+    
     char* err_message = create_err_message_tcp(global_display_name_tcp, msg);
     send(socket_desc_tcp, err_message, strlen(err_message), 0);
+    
     char* bye_message = create_bye_message_tcp();
     send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
+    
     cleanup(socket_desc_tcp, epollfd_tcp);         
     exit(EXIT_FAILURE);
 }
@@ -62,57 +66,82 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
     
     char extra[MAX_CONTENT] = "";
     if (strncmp(command, "/auth", 5) == 0) {
+        
         if (authenticated_tcp) {
             fprintf(stderr, "ERR: You are already authenticated\n");
             return;
         }
+        
         char username[MAX_USERNAME] = "", secret[MAX_SECRET] = "", display_name[MAX_DNAME] = "";
+        
         sscanf(command, "/auth %s %s %s %99[^\n]", username, secret, display_name, extra);
+        
         if (strlen(username) == 0 || strlen(secret) == 0 || strlen(display_name) == 0 || strlen(extra) > 0
             || !is_alnum_or_dash(username) || !is_alnum_or_dash(secret) || !is_print_or_space(display_name)) {
             fprintf(stderr, "ERR: Invalid parameters for /auth\n");
             return;
         }
+        
         strncpy(global_display_name_tcp, display_name, MAX_DNAME);
+        
         char* message = create_auth_message_tcp(username, display_name, secret);
         send(socket_desc_tcp, message, strlen(message), 0);
+        
         epoll_ctl(epollfd_tcp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_tcp);
+        
         strncpy(last_command_tcp, command, 5);
     } else if (strncmp(command, "/join", 5) == 0) {
+        
         if(!authenticated_tcp){
             fprintf(stderr, "ERR: You must authenticate first\n");
             return;
         }
+        
         char channel_id[MAX_ID] = "";
+        
         sscanf(command, "/join %s %99[^\n]", channel_id, extra);
+        
         if (strlen(channel_id) == 0 || strlen(extra) > 0 || !is_alnum_or_dash(channel_id)) {
             fprintf(stderr, "ERR: Invalid parameters for /join\n");
             return;
         }
+        
         char* message = create_join_message_tcp(channel_id, global_display_name_tcp);
         send(socket_desc_tcp, message, strlen(message), 0);
+        
         epoll_ctl(epollfd_tcp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_tcp);
+        
         strncpy(last_command_tcp, command, 5);
     } else if (strncmp(command, "/rename", 7) == 0) {
+        
         if(!authenticated_tcp){
             fprintf(stderr, "ERR: You must authenticate first\n");
             return;
         }
+        
         char display_name[MAX_DNAME] = "";
+        
         sscanf(command, "/rename %s %99[^\n]", display_name, extra);
+        
         if (strlen(display_name) == 0 || strlen(extra) > 0 || !is_print_or_space(display_name)) {
             fprintf(stderr, "ERR: Invalid parameters for /rename\n");
             return;
         }
+        
         strncpy(global_display_name_tcp, display_name, MAX_DNAME);
+        
         strncpy(last_command_tcp, command, 7);
     } else if (strncmp(command, "/help", 5) == 0) {
+        
         sscanf(command, "/help %99[^\n]", extra);
+        
         if(strlen(extra) > 0){
             fprintf(stderr, "ERR: Invalid parameters for /help\n");
             return;
         }
+        
         print_help_client(); 
+        
         if(authenticated_tcp){
             strncpy(last_command_tcp, command, 5); 
         }    
@@ -122,14 +151,18 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
 }
 
 void handle_server_reply_tcp(char* reply) {
+    
     char* token = strtok(reply, " ");
     if (strcasecmp(token, "REPLY") == 0) {
+        
         char* status = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
         char* message = strtok(NULL, "\r\n");
+        
         if (message == NULL || is_token == NULL || strcasecmp(is_token, "IS") != 0) {
             error_tcp("Invalid REPLY message from server");
         }
+        
         if ((strncmp(last_command_tcp, "/auth", 5) == 0) || (strncmp(last_command_tcp, "/join", 5) == 0)){
             ev_tcp.events = EPOLLIN;
             ev_tcp.data.fd = STDIN_FILENO;
@@ -139,13 +172,9 @@ void handle_server_reply_tcp(char* reply) {
                 exit(EXIT_FAILURE);
             }
         } 
-        // FSM issue smh
-        //else {
-        //    error_tcp("REPLY on other than /auth or /join command");
-        //}
+        
         if (strcasecmp(status, "OK") == 0) {
             fprintf(stderr, "Success: %s\n", message);
-
             if (strncmp(last_command_tcp, "/auth", 5) == 0) {
                 authenticated_tcp = true;
             } 
@@ -156,35 +185,45 @@ void handle_server_reply_tcp(char* reply) {
         }
 
     } else if (strcasecmp(token, "MSG") == 0) {
+        
         if (!authenticated_tcp) {
             error_tcp("Message from server before authentication");
         }
+        
         char* from_token = strtok(NULL, " ");
         char* from = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
         char* message = strtok(NULL, "\r\n");
+        
         if (message == NULL || from_token == NULL || from == NULL || is_token == NULL 
             || strcasecmp(is_token, "IS") != 0 || strcasecmp(from_token, "FROM") != 0 ){
             error_tcp("Invalid MSG message from server");
         }
+        
         printf("%s: %s\n", from, message);
     } else if (strcasecmp(token, "ERR") == 0) {
+        
         char* from_token = strtok(NULL, " ");
         char* from = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
         char* message = strtok(NULL, "\r\n");
+        
         if (message == NULL || from_token == NULL || from == NULL || is_token == NULL 
             || strcasecmp(is_token, "IS") != 0 || strcasecmp(from_token, "FROM") != 0 ){
             error_tcp("Invalid MSG message from server");
         }
+        
         fprintf(stderr, "ERR FROM %s: %s\n", from, message);
         send(socket_desc_tcp, create_bye_message_tcp(), strlen(create_bye_message_tcp()), 0);
+        
         cleanup(socket_desc_tcp, epollfd_tcp);
         exit(EXIT_FAILURE);
     } else if (strncmp(token, "BYE", 3) == 0) {
+        
         if (strtok(NULL, "\r\n") != NULL){
             error_tcp("Invalid BYE message from server");
         }
+        
         cleanup(socket_desc_tcp, epollfd_tcp);
         exit(EXIT_SUCCESS);
     } else {
@@ -193,9 +232,9 @@ void handle_server_reply_tcp(char* reply) {
 }
 
 void signal_handler_tcp() {
-    if(strcmp(last_command_tcp, "") != 0){
-        char* bye_message = create_bye_message_tcp();
-        send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
+    if (strcmp(last_command_tcp, "") != 0){
+    char* bye_message = create_bye_message_tcp();
+    send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
     }
     cleanup(socket_desc_tcp, epollfd_tcp);
     exit(EXIT_SUCCESS);
@@ -208,8 +247,7 @@ int tcp_connect(char* ipstr, int port) {
     signal(SIGINT, signal_handler_tcp);
 
     socket_desc_tcp = socket(AF_INET , SOCK_STREAM , 0);
-    if (socket_desc_tcp == -1)
-    {
+    if (socket_desc_tcp == -1){
         cleanup(socket_desc_tcp, epollfd_tcp);
         fprintf(stderr,"ERR: Could not create socket\n");
         return EXIT_FAILURE;
@@ -219,8 +257,7 @@ int tcp_connect(char* ipstr, int port) {
     server.sin_family = AF_INET;
     server.sin_port = htons( port );
 
-    if (connect(socket_desc_tcp , (struct sockaddr *)&server , sizeof(server)) < 0)
-    {
+    if (connect(socket_desc_tcp , (struct sockaddr *)&server , sizeof(server)) < 0){
         cleanup(socket_desc_tcp, epollfd_tcp);
         fprintf(stderr,"ERR: Connect error_tcp\n");
         return EXIT_FAILURE;
@@ -246,6 +283,7 @@ int tcp_connect(char* ipstr, int port) {
     
     // Wait for events
     for(;;){
+        
         int nfds = epoll_wait(epollfd_tcp, events, MAX_EVENTS, -1);
         if(nfds == -1){
             cleanup(socket_desc_tcp, epollfd_tcp);
@@ -254,13 +292,17 @@ int tcp_connect(char* ipstr, int port) {
         }
     
         for(int n = 0; n < nfds; ++n){
+            
             if(events[n].data.fd == socket_desc_tcp){
+                
                 // Set socket to non-blocking mode
                 int flags = fcntl(socket_desc_tcp, F_GETFL, 0);
+                
                 if (flags == -1) {
                     perror("fcntl");
                     return EXIT_FAILURE;
                 }
+                
                 flags |= O_NONBLOCK;
                 if (fcntl(socket_desc_tcp, F_SETFL, flags) == -1) {
                     perror("fcntl");
@@ -279,6 +321,7 @@ int tcp_connect(char* ipstr, int port) {
                     // Check if we've received a complete message
                     if (total_bytes >= 2 && server_reply[total_bytes - 2] == '\r' 
                         && server_reply[total_bytes - 1] == '\n') {
+                        
                         // Null-terminate the message and handle it
                         server_reply[total_bytes - 2] = '\0';
                         handle_server_reply_tcp(message_start);
@@ -296,6 +339,7 @@ int tcp_connect(char* ipstr, int port) {
                 }
 
                 if (bytes == -1) {
+                    
                     if (errno == EWOULDBLOCK || errno == EAGAIN) {
                         // No data available, continue with your loop
                     } else {
@@ -303,6 +347,7 @@ int tcp_connect(char* ipstr, int port) {
                         fprintf(stderr,"ERR: Error_tcp in recv\n");
                         return EXIT_FAILURE;
                     }
+
                 } else if (bytes == 0) {
                     cleanup(socket_desc_tcp, epollfd_tcp);
                     fprintf(stderr,"ERR: Server disconnected\n");
@@ -310,16 +355,19 @@ int tcp_connect(char* ipstr, int port) {
                 }
 
             } else if(events[n].data.fd == STDIN_FILENO){
+                
                 // Read user input and send data to the server
                 char buffer[1500];
                 if (fgets(buffer, 1500, stdin) == NULL) {
+                    
                     // Ctrl+D was pressed, exit the program
-                    if(strcmp(last_command_tcp, "") != 0) {
+                    if (strcmp(last_command_udp, "") != 0) {          
                         char* bye_message = create_bye_message_tcp();
                         send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
-                    }
+                    }               
                     cleanup(socket_desc_tcp, epollfd_tcp);
                     return EXIT_SUCCESS;
+                    
                 }
                 
                 // Message is_token empty, skip
@@ -331,15 +379,20 @@ int tcp_connect(char* ipstr, int port) {
                 if (buffer[0] == '/') {
                     handle_command_tcp(buffer, socket_desc_tcp);
                 } else {
+                    
                     if (!authenticated_tcp) {
                         fprintf(stderr, "ERR: You must authenticate first\n");
                         continue;
                     }
-                    buffer[strlen(buffer) - 1] = '\0'; // Replace newline with null character
+                    
+                    // Replace newline with null character
+                    buffer[strlen(buffer) - 1] = '\0'; 
+                    
                     if (!is_print_or_space(buffer)) {
                         fprintf(stderr, "ERR: Invalid message\n");
                         continue;
                     }
+                    
                     char* message = create_msg_message_tcp(global_display_name_tcp, buffer);
                     send(socket_desc_tcp, message, strlen(message), 0);
                 }
@@ -347,6 +400,5 @@ int tcp_connect(char* ipstr, int port) {
             }
         }
     }
-
     return EXIT_SUCCESS;
 }

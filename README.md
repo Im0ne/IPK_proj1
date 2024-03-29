@@ -8,14 +8,31 @@ This documentation covers the source code for a chat client implemented in C. Th
   - [Content Structuring](#content-structuring)
   - [Code Structuring](#code-structuring)
   - [Executive Summary](#executive-summary)
-
+  - [Compilation](#compilation)
+  - [Usage](#usage)
+  - [Client Usage](#client-usage)
+  - [Source Code Comments](#source-code-comments)
+  - [Testing](#testing)
+    - [Testing Description](#testing-description)
+    - [Testing Examples](#testing-examples)
+  - [Useful Links](#useful-links)
+  - [Bibliography](#bibliography)
+  
 ## Code Structuring
 
-**main.c**: Contains argument parsing logic and convertion server name to IPv4.
-**tcp.c**/**udp.c**: Contains the implementation of the chat client using TCP/UDP.
-**help.c**: Contains functions that used by both implementations of protocol.
-There is also headers for theese files with the same name that declares functions.
-**Makefile**: Used to create binary from source code.
+**main.c**: Contains the main function which is the entry point of the program. It handles argument parsing and converts the server name to IPv4.
+
+**tcp.c**: Contains the implementation of the chat client using TCP. This includes functions for establishing a connection, sending and receiving messages, and handling errors.
+
+**udp.c**: Contains the implementation of the chat client using UDP. Like tcp.c, it includes functions for establishing a connection, sending and receiving messages, and handling errors.
+
+**help.c**: Contains helper functions that are used by both the TCP and UDP implementations. This could include functions for parsing commands, formatting messages, and handling timeouts.
+
+**headers**: There are header files corresponding to each of the above .c files (e.g., main.h, tcp.h, udp.h, help.h). These files declare the functions that are implemented in the .c files.
+
+**Makefile**: Used to compile the source code into a binary. It specifies the dependencies between the source files and the rules for compiling them.
+
+Each of these components plays a crucial role in the functioning of the chat client. The main.c file is the starting point of the program, while tcp.c and udp.c implement the core functionality of the chat client for their respective protocols. The help.c file provides utility functions that are used throughout the codebase, and the header files declare the interfaces of the .c files. Finally, the Makefile automates the process of compiling the source code.
 
 ## Executive Summary
 
@@ -75,8 +92,8 @@ There are other packets that not under our protocol, those are for containing tc
 
 ## Useful links
 
-[Socket programming](https://www.binarytides.com/socket-programming-c-linux-tutorial/)
-[IPK Lectures](https://www.youtube.com/playlist?list=PL_eb8wrKJwYv0INj2tRYT15csQXcKxTg1)
+[Socket programming](https://www.binarytides.com/socket-programming-c-linux-tutorial/)  
+[IPK Lectures](https://www.youtube.com/playlist?list=PL_eb8wrKJwYv0INj2tRYT15csQXcKxTg1)  
 
 ## Bibliography
 

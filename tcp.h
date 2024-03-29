@@ -1,6 +1,6 @@
 /**
  * @file tcp.h
- * @brief IPK Project 1 - Chat Client
+ * @brief IPK Project 1 - Chat Client(TCP protocol implementation)
  * @author Ivan Onufriienko
  * 
 */

@@ -1,6 +1,6 @@
 /**
  * @file udp.h
- * @brief IPK Project 1 - Chat Client
+ * @brief IPK Project 1 - Chat Client(UDP protocol implementation)
  * @author Ivan Onufriienko
  * 
 */
@@ -27,9 +27,7 @@
  * @param timeout int timeout
  * @param retransmissions int retransmissions
 */
-bool wait_for_confirmation(int socket_desc_udp,unsigned char* message, int message_length, 
-                            struct sockaddr* server_addr, socklen_t server_addr_len, 
-                            int timeout, int retransmissions);
+bool wait_for_confirmation(unsigned char* message, int message_length);
 /**
  * @brief Converts uint16_t number to char array
  * @param num uint16_t number
@@ -42,7 +40,7 @@ void uint16_to_char_array(uint16_t num, char* buffer);
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_confirm_message_udp(uint16_t ref_message_id,unsigned char* message);
+int create_confirm_message_udp(uint16_t ref_message_id, unsigned char* message);
 /**
  * @brief Function to create auth message
  * @param message_id uint16_t message id
@@ -52,7 +50,7 @@ int create_confirm_message_udp(uint16_t ref_message_id,unsigned char* message);
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_auth_message_udp(uint16_t message_id, char* username, char* display_name, char* secret,unsigned char* message);
+int create_auth_message_udp(char* username, char* secret, unsigned char* message);
 /**
  * @brief Function to create join message
  * @param message_id uint16_t message id
@@ -61,7 +59,7 @@ int create_auth_message_udp(uint16_t message_id, char* username, char* display_n
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_join_message_udp(uint16_t message_id, char* channel_id, char* display_name,unsigned char* message);
+int create_join_message_udp(char* channel_id, unsigned char* message);
 /**
  * @brief Function to create msg message
  * @param message_id uint16_t message id
@@ -70,7 +68,7 @@ int create_join_message_udp(uint16_t message_id, char* channel_id, char* display
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_msg_message_udp(uint16_t message_id, char* display_name, char* message_content,unsigned char* message);
+int create_msg_message_udp(char* message_content, unsigned char* message);
 /**
  * @brief Function to create err message
  * @param message_id uint16_t message id
@@ -79,14 +77,14 @@ int create_msg_message_udp(uint16_t message_id, char* display_name, char* messag
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_err_message_udp(uint16_t message_id, char* display_name, char* message_content,unsigned char* message);
+int create_err_message_udp(char* message_content, unsigned char* message);
 /**
  * @brief Function to create bye message
  * @param message_id uint16_t message id
  * @param message char* placement for the message
  * @return int size of the message
  */
-int create_bye_message_udp(uint16_t message_id,unsigned char* message);
+int create_bye_message_udp(unsigned char* message);
 /**
  * @brief Function to handle special case when server sends incorrect message
  * @param msg char* message
@@ -95,7 +93,7 @@ int create_bye_message_udp(uint16_t message_id,unsigned char* message);
  * @param timeout int timeout
  * @param retransmissions int retransmissions
 */
-void error_udp(char *msg,unsigned char* message, uint16_t ref_message_id, int timeout, int retransmissions);
+void error_udp(char *msg, unsigned char* message);
 /**
  * @brief Function to handle command from user
  * @param command char* command
@@ -104,7 +102,7 @@ void error_udp(char *msg,unsigned char* message, uint16_t ref_message_id, int ti
  * @param timeout int timeout
  * @param retransmissions int retransmissions
 */
-void handle_command_udp(char* command, int socket_desc, uint16_t message_id, int timeout, int retransmissions);
+void handle_command_udp(char* command, int socket_desc);
 /**
  * @brief Function to handle server reply
  * @param reply char* reply
@@ -112,7 +110,7 @@ void handle_command_udp(char* command, int socket_desc, uint16_t message_id, int
  * @param retranmissions int retransmissions
  * @param message_id uint16_t message id
 */
-void handle_server_reply_udp(char* reply, int timeout, int retranmissions);
+void handle_server_reply_udp(char* reply);
 /**
  * @brief Function to gracefully exit when SIGINT is received
  * @param signum int signal number
