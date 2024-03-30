@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <time.h>
+#include <sys/time.h>
 
 #define MAX_EVENTS 1
 

@@ -85,8 +85,17 @@ All tests were executed on Windows Subsystem for Linux(Ubuntu), and the implemen
 
 ### Testing Examples
 
+#### UDP conversation between client and mock server
+
+![UDP conversation between client and mock server](./tests/udp_conv.png)
+
+This conversation is testing various message types and responses. On the picture you can see what messages was sent from client and how it look on the server side, so we can see that client sends valid messages in terms of IPK24chat protocol.
+
+#### TCP conversation between client and netcat server
+
 ![TCP conversation between client and netcat server](./tests/tcp_conv.png)  
-Here you can see various usages of tcp protocol: authentication, sending message from client and from server, joining non-existing channel, joining existing channel, using wrong command and receiving wrong message from server.  
+
+Here you can see various usages of tcp protocol: authentication, sending message from client and from server, joining non-existing channel, joining existing channel, using wrong command and receiving wrong message from server and sending appropriate reaction on it.  
 > **Note**
 There are other packets that not under our protocol, those are for containing tcp connection.
 

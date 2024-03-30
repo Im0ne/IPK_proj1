@@ -9,9 +9,9 @@
 /*--------Global variables--------*/ 
 
 // Saving display name for the whole session
-char global_display_name_tcp[MAX_DNAME];    
+char global_display_name_tcp[MAX_DNAME] = "unnamed";    
 // Used to check in what state the user is_token
-char last_command_tcp[MAX_DNAME];
+char last_command_tcp[MAX_DNAME] = "";
 // Some allocations for graceful exit
 int socket_desc_tcp = -1;                   
 int epollfd_tcp = -1;                    
@@ -48,6 +48,7 @@ char* create_bye_message_tcp() {
     return "BYE\r\n";
 }
 
+// This function was used too often, so I decided to create it
 void error_tcp(char *msg) {
     
     fprintf(stderr, "ERR: %s\n", msg);
@@ -63,8 +64,9 @@ void error_tcp(char *msg) {
 }
 
 void handle_command_tcp(char* command, int socket_desc_tcp) {
-    
     char extra[MAX_CONTENT] = "";
+    
+    // Parsing commands
     if (strncmp(command, "/auth", 5) == 0) {
         
         if (authenticated_tcp) {
@@ -76,19 +78,24 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
         
         sscanf(command, "/auth %s %s %s %99[^\n]", username, secret, display_name, extra);
         
+        // Check if the parameters are valid
         if (strlen(username) == 0 || strlen(secret) == 0 || strlen(display_name) == 0 || strlen(extra) > 0
             || !is_alnum_or_dash(username) || !is_alnum_or_dash(secret) || !is_print_or_space(display_name)) {
             fprintf(stderr, "ERR: Invalid parameters for /auth\n");
             return;
         }
         
+        // Save display name for the whole session
         strncpy(global_display_name_tcp, display_name, MAX_DNAME);
         
+        // Send the message to the server
         char* message = create_auth_message_tcp(username, display_name, secret);
         send(socket_desc_tcp, message, strlen(message), 0);
         
+        // Block stdin beacause client waits for the server response
         epoll_ctl(epollfd_tcp, EPOLL_CTL_DEL, STDIN_FILENO, &ev_tcp);
         
+        // Save the last command for REPLY and graceful exit
         strncpy(last_command_tcp, command, 5);
     } else if (strncmp(command, "/join", 5) == 0) {
         
@@ -114,11 +121,6 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
         strncpy(last_command_tcp, command, 5);
     } else if (strncmp(command, "/rename", 7) == 0) {
         
-        if(!authenticated_tcp){
-            fprintf(stderr, "ERR: You must authenticate first\n");
-            return;
-        }
-        
         char display_name[MAX_DNAME] = "";
         
         sscanf(command, "/rename %s %99[^\n]", display_name, extra);
@@ -130,7 +132,10 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
         
         strncpy(global_display_name_tcp, display_name, MAX_DNAME);
         
+        // First command must be /auth
+        if(authenticated_tcp){
         strncpy(last_command_tcp, command, 7);
+        }
     } else if (strncmp(command, "/help", 5) == 0) {
         
         sscanf(command, "/help %99[^\n]", extra);
@@ -142,6 +147,7 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
         
         print_help_client(); 
         
+        // First command must be /auth
         if(authenticated_tcp){
             strncpy(last_command_tcp, command, 5); 
         }    
@@ -151,18 +157,24 @@ void handle_command_tcp(char* command, int socket_desc_tcp) {
 }
 
 void handle_server_reply_tcp(char* reply) {
-    
     char* token = strtok(reply, " ");
+    
+    // In state start server cannot send a message to client
+    if (strcmp(last_command_tcp, "") == 0){
+        error_tcp("Server sent a message before user sent a command");
+    }
+    
     if (strcasecmp(token, "REPLY") == 0) {
         
+        // Some controls for the message
         char* status = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
-        char* message = strtok(NULL, "\r\n");
-        
+        char* message = strtok(NULL, "\r\n");    
         if (message == NULL || is_token == NULL || strcasecmp(is_token, "IS") != 0) {
             error_tcp("Invalid REPLY message from server");
         }
         
+        // Bringing back stdin
         if ((strncmp(last_command_tcp, "/auth", 5) == 0) || (strncmp(last_command_tcp, "/join", 5) == 0)){
             ev_tcp.events = EPOLLIN;
             ev_tcp.data.fd = STDIN_FILENO;
@@ -186,6 +198,7 @@ void handle_server_reply_tcp(char* reply) {
 
     } else if (strcasecmp(token, "MSG") == 0) {
         
+        // In auth state server can send only CONFIRM and ERR
         if (!authenticated_tcp) {
             error_tcp("Message from server before authentication");
         }
@@ -193,8 +206,7 @@ void handle_server_reply_tcp(char* reply) {
         char* from_token = strtok(NULL, " ");
         char* from = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
-        char* message = strtok(NULL, "\r\n");
-        
+        char* message = strtok(NULL, "\r\n");     
         if (message == NULL || from_token == NULL || from == NULL || is_token == NULL 
             || strcasecmp(is_token, "IS") != 0 || strcasecmp(from_token, "FROM") != 0 ){
             error_tcp("Invalid MSG message from server");
@@ -206,8 +218,7 @@ void handle_server_reply_tcp(char* reply) {
         char* from_token = strtok(NULL, " ");
         char* from = strtok(NULL, " ");
         char* is_token = strtok(NULL, " ");
-        char* message = strtok(NULL, "\r\n");
-        
+        char* message = strtok(NULL, "\r\n");     
         if (message == NULL || from_token == NULL || from == NULL || is_token == NULL 
             || strcasecmp(is_token, "IS") != 0 || strcasecmp(from_token, "FROM") != 0 ){
             error_tcp("Invalid MSG message from server");
@@ -220,6 +231,10 @@ void handle_server_reply_tcp(char* reply) {
         exit(EXIT_FAILURE);
     } else if (strncmp(token, "BYE", 3) == 0) {
         
+        if (!authenticated_tcp) {
+            error_tcp("Message from server before authentication");
+        }
+
         if (strtok(NULL, "\r\n") != NULL){
             error_tcp("Invalid BYE message from server");
         }
@@ -232,9 +247,10 @@ void handle_server_reply_tcp(char* reply) {
 }
 
 void signal_handler_tcp() {
+    // There is no need to send BYE message if user didn't send any command
     if (strcmp(last_command_tcp, "") != 0){
-    char* bye_message = create_bye_message_tcp();
-    send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
+        char* bye_message = create_bye_message_tcp();
+        send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
     }
     cleanup(socket_desc_tcp, epollfd_tcp);
     exit(EXIT_SUCCESS);
@@ -296,16 +312,17 @@ int tcp_connect(char* ipstr, int port) {
             if(events[n].data.fd == socket_desc_tcp){
                 
                 // Set socket to non-blocking mode
-                int flags = fcntl(socket_desc_tcp, F_GETFL, 0);
-                
+                int flags = fcntl(socket_desc_tcp, F_GETFL, 0);       
                 if (flags == -1) {
-                    perror("fcntl");
+                    cleanup(socket_desc_tcp, epollfd_tcp);
+                    fprintf(stderr,"ERR: Error_tcp in fcntl 1\n");
                     return EXIT_FAILURE;
                 }
                 
                 flags |= O_NONBLOCK;
                 if (fcntl(socket_desc_tcp, F_SETFL, flags) == -1) {
-                    perror("fcntl");
+                    cleanup(socket_desc_tcp, epollfd_tcp);
+                    fprintf(stderr,"ERR: Error_tcp in fcntl 2\n");
                     return EXIT_FAILURE;
                 }
 
@@ -347,7 +364,6 @@ int tcp_connect(char* ipstr, int port) {
                         fprintf(stderr,"ERR: Error_tcp in recv\n");
                         return EXIT_FAILURE;
                     }
-
                 } else if (bytes == 0) {
                     cleanup(socket_desc_tcp, epollfd_tcp);
                     fprintf(stderr,"ERR: Server disconnected\n");
@@ -361,13 +377,13 @@ int tcp_connect(char* ipstr, int port) {
                 if (fgets(buffer, 1500, stdin) == NULL) {
                     
                     // Ctrl+D was pressed, exit the program
-                    if (strcmp(last_command_udp, "") != 0) {          
+                    if (strcmp(last_command_tcp, "") != 0) {          
                         char* bye_message = create_bye_message_tcp();
                         send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
-                    }               
+                    } 
+                                  
                     cleanup(socket_desc_tcp, epollfd_tcp);
-                    return EXIT_SUCCESS;
-                    
+                    return EXIT_SUCCESS;  
                 }
                 
                 // Message is_token empty, skip
@@ -396,9 +412,9 @@ int tcp_connect(char* ipstr, int port) {
                     char* message = create_msg_message_tcp(global_display_name_tcp, buffer);
                     send(socket_desc_tcp, message, strlen(message), 0);
                 }
-                
             }
         }
     }
+    cleanup(socket_desc_tcp, epollfd_tcp);
     return EXIT_SUCCESS;
 }
