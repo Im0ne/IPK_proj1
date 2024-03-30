@@ -417,8 +417,6 @@ void handle_server_reply_udp(char* reply) {
     if ((unsigned char)reply[0] == REPLY) {
         
         uint8_t result = reply[3];
-        
-        // Some black shift magic
         uint16_t reply_ref_id = (uint8_t)reply[1] << 8 | (uint8_t)reply[2];
         
         // Check if the reply is for the last message sent
@@ -462,7 +460,6 @@ void handle_server_reply_udp(char* reply) {
             error_udp("Message from server before authentication", message);
         }
 
-        // Message must be null terminated
         if (reply[strlen(reply)] != '\0') {
             error_udp("Invalid message format", message);
         } 
@@ -471,14 +468,12 @@ void handle_server_reply_udp(char* reply) {
 
     } else if ((unsigned char)reply[0] == ERR) {
         
-        // Message must be null terminated
         if (reply[strlen(reply)] != '\0') {
             error_udp("Invalid message format", message);
         }
 
         fprintf(stderr, "ERR FROM %s: %s\n", reply + 3, reply + 4 + strlen(reply + 3));
 
-        // Entering end state
         int message_length = create_bye_message_udp(message);
         sendto(socket_desc_udp, message, message_length, 0, 
                 (struct sockaddr*)&server_addr, sizeof(server_addr));
@@ -634,9 +629,9 @@ int udp_connect(char* ipstr, int port, int timeout, int retransmissions) {
             } else if (events[n].data.fd == STDIN_FILENO) {
                 
                 // Handle stdin event         
-                char buffer[1500];
-                unsigned char message[1500];
-                if (fgets(buffer, 1500, stdin) == NULL) {
+                char buffer[1400];
+                unsigned char message[1400];
+                if (fgets(buffer, 1400, stdin) == NULL) {
                     
                     // Ctrl+D was pressed, exit the program
                     if (strcmp(last_command_udp, "") != 0) {
@@ -668,6 +663,11 @@ int udp_connect(char* ipstr, int port, int timeout, int retransmissions) {
                     
                     if(!authenticated_udp){
                         fprintf(stderr, "ERR: You must authenticate first\n");
+                        continue;
+                    }
+
+                    if (!is_print_or_space(buffer)) {
+                        fprintf(stderr, "ERR: Invalid message\n");
                         continue;
                     }
 

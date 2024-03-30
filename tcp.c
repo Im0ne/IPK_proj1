@@ -373,15 +373,15 @@ int tcp_connect(char* ipstr, int port) {
             } else if(events[n].data.fd == STDIN_FILENO){
                 
                 // Read user input and send data to the server
-                char buffer[1500];
-                if (fgets(buffer, 1500, stdin) == NULL) {
+                char buffer[1400];
+                if (fgets(buffer, 1400, stdin) == NULL) {
                     
                     // Ctrl+D was pressed, exit the program
                     if (strcmp(last_command_tcp, "") != 0) {          
                         char* bye_message = create_bye_message_tcp();
                         send(socket_desc_tcp, bye_message, strlen(bye_message), 0);
                     } 
-                                  
+
                     cleanup(socket_desc_tcp, epollfd_tcp);
                     return EXIT_SUCCESS;  
                 }

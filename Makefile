@@ -8,3 +8,6 @@ OBJ = main.o tcp.o udp.o help.o
 
 ipk24chat-client: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
+
+clean:
+	rm -f *.o ipk24chat-client
