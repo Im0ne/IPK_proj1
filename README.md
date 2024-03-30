@@ -36,7 +36,9 @@ Each of these components plays a crucial role in the functioning of the chat cli
 
 ## Executive Summary
 
-The chat client is a command-line application that communicates with a chat server. It supports both TCP and UDP protocols. The user can specify the protocol, server, port, timeout, and number of retransmissions as command-line arguments when starting the client.
+The chat client is a command-line application that communicates with a chat server. It supports both TCP and UDP protocols. The user can specify the protocol, server, port, timeout, and number of retransmissions as command-line arguments when starting the client.  
+The client parses the arguments then on the basis of these arguments gets the ipv4 address and protocol to connect to it. Then the user needs to enter the /auth command with the appropriate arguments, the client will send it to the server and get a response that will show the user, if the response is positive, the user will connect to the default chat and immediately start receiving messages from this chat, if the response is negative, the client is in the authentication state, the user can only send /auth commands to the server. Also the user can switch between channels with /join, here everything is the same as with /auth. If in any of these states there is an unsupported message from the server, then there will be a transition to the error state and then to the final state. In the error state the transition occurs only if the client sends an error to the server, and in the final state after sending a bye message.To end the connection, i.e. to switch to the final state, the user should press the Ctrl+C or Ctrl+D key combination.
+
 
 ## Compilation
 
@@ -70,10 +72,6 @@ Only options `-t` and `-s` are mandatory and have to be always specified when ru
 /join `channel_id`: Join a channel.  
 /rename `display_name`: Change your display name.  
 /help: Print help information.  
-
-## Source Code Comments
-
-The source code comments are written in English. They provide explanations of the code and document the purpose and parameters of functions.
 
 ## Testing
 
