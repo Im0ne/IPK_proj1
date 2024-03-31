@@ -26,7 +26,7 @@ This documentation covers the source code for a chat client implemented in C. Th
 
 **udp.c**: Contains the implementation of the chat client using UDP. Like tcp.c, it includes functions for establishing a connection, sending and receiving messages, and handling errors.
 
-**help.c**: Contains helper functions that are used by both the TCP and UDP implementations. This could include functions for parsing commands, formatting messages, and handling timeouts.
+**help.c**: Contains helper functions that are used by both the TCP and UDP implementations.  
 
 **headers**: There are header files corresponding to each of the above .c files (e.g., main.h, tcp.h, udp.h, help.h). These files declare the functions that are implemented in the .c files.
 
@@ -36,9 +36,12 @@ Each of these components plays a crucial role in the functioning of the chat cli
 
 ## Executive Summary
 
-The chat client is a command-line application that communicates with a chat server. It supports both TCP and UDP protocols. The user can specify the protocol, server, port, timeout, and number of retransmissions as command-line arguments when starting the client.  
-The client parses the arguments then on the basis of these arguments gets the ipv4 address and protocol to connect to it. Then the user needs to enter the /auth command with the appropriate arguments, the client will send it to the server and get a response that will show the user, if the response is positive, the user will connect to the default chat and immediately start receiving messages from this chat, if the response is negative, the client is in the authentication state, the user can only send /auth commands to the server. Also the user can switch between channels with /join, here everything is the same as with /auth. If in any of these states there is an unsupported message from the server, then there will be a transition to the error state and then to the final state. In the error state the transition occurs only if the client sends an error to the server, and in the final state after sending a bye message.To end the connection, i.e. to switch to the final state, the user should press the Ctrl+C or Ctrl+D key combination.
+- TCP: A connection-oriented protocol that ensures data sent from one computer to another arrives intact and in the correct order. For creation messages was used  ABNF [RFC5234] grammar.  
+- UDP: A connectionless protocol often used for streaming services. It's faster than TCP but doesn't guarantee the order of data packets.  
 
+Crucial part of this project was socket creation. Sockets are the "virtual" endpoints of any kind of network communications done between 2 hosts over in a network.  
+
+Another important part of this project was listening both stding and socket, it's quite challenging because we can't just listen in while(true) loop because the operations wich do it are blocking and can't be done in parallel, so how do we implement it? We can use threads or polling, threads are good overall but in our situation better to use polling. So what is polling, we create file descriptors(stdin and socket) and start waiting. We wait until one of theese descriptors don't 'say' to us that he has some data to read and then we start reading from it. 
 
 ## Compilation
 
@@ -87,7 +90,7 @@ All tests were executed on Windows Subsystem for Linux(Ubuntu), and the implemen
 
 ![UDP conversation between client and mock server](./tests/udp_conv.png)
 
-This conversation is testing various message types and responses. On the picture you can see what messages was sent from client and how it look on the server side, so we can see that client sends valid messages in terms of IPK24chat protocol.
+This conversation is testing various message types and responses. On the picture you can see what messages was sent from client and how it look on the server side, so we can see that client sends valid messages in terms of IPK24chat protocol. There were tested authentication, messaging, channel joining, graceful exit with confirmed bye.
 
 #### TCP conversation between client and netcat server
 
@@ -105,5 +108,9 @@ There are other packets that not under our protocol, those are for containing tc
 ## Bibliography
 
 [1] Daniel Dolejška. IPK Project 1: Client for a chat server using `IPK24-CHAT` protocol. Available at: [IPK_project1]
+
+[2] Crocker, D. and Overell, P. Augmented BNF for Syntax Specifications: ABNF [online]. January 2008. [cited 2024-02-11]. DOI: 10.17487/RFC5234. Available at: [RFC5234]
+
+[RFC5234]: https://datatracker.ietf.org/doc/html/rfc5234
 
 [IPK_project1]: https://git.fit.vutbr.cz/NESFIT/IPK-Projects-2024/src/branch/master/Project%201
