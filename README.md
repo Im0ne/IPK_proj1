@@ -56,7 +56,7 @@ make
 You can run client using following command:
 
 ```bash
-./ipk24chat-client ipk24chat-client -t <protocol> -s <server> -p <port> -d <timeout> -r <retransmissions> -h
+./ipk24chat-client -t <protocol> -s <server> -p <port> -d <timeout> -r <retransmissions> -h
 ```
 
 `-t` Protocol to use (tcp or udp)  
