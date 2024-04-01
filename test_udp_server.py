@@ -39,7 +39,7 @@ while True:
             # Construct the REPLY message
             result = 1  
             message_contents = 'Success'  
-            reply_message = struct.pack('>BHB', REPLY, message_id, result) + message_id.to_bytes(2, 'big') + message_contents.encode() + b'\0'
+            reply_message = struct.pack('>BHB', REPLY, message_id, result) + message_id.to_bytes(2, 'little') + message_contents.encode() + b'\0'
             print('Sending REPLY:', reply_message)
             sent = sock.sendto(reply_message, address)
             message_id += 1

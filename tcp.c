@@ -348,8 +348,8 @@ int tcp_connect(char* ipstr, int port) {
                     }
 
                     // Check if we've filled the buffer
-                    if (total_bytes == sizeof(server_reply) - 1) {
-                        fprintf(stderr, "ERR: Message too long\n");
+                    if (total_bytes == sizeof(server_reply)) {
+                        error_tcp(stderr, "ERR: Message is too long\n");
                         cleanup(socket_desc_tcp, epollfd_tcp);
                         return EXIT_FAILURE;
                     }
